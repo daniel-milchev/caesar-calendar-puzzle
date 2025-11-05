@@ -116,22 +116,58 @@ PIECES_BASE = [
     [(0, 0), (1, 0), (1, 1), (1, 2), (2, 2)],  # 10 custom S-like
 ]
 
-# ------------------ WINDOW ------------------
-def compute_initial_cell(win_w: int, win_h: int) -> int:
+# ------------------ WINDOW & LAYOUT HELPERS ------------------
+def get_piece_dimensions(piece_collection=None):
+    """
+    Calculate max width and height across all pieces.
+    
+    Args:
+        piece_collection: Optional list of pieces to measure. 
+                         Uses PIECES_BASE if None.
+    
+    Returns:
+        tuple: (max_width, max_height)
+    """
+    if piece_collection is None:
+        piece_collection = PIECES_BASE
+        
     wmax, hmax = 1, 1
-    for p in PIECES_BASE:
-        w = max(x for x, _ in p) + 1
-        h = max(y for _, y in p) + 1
+    for p in piece_collection:
+        if not p:
+            continue
+        # Handle both raw coordinate lists and piece dicts with 'cells' key
+        cells = p.get("cells", p) if isinstance(p, dict) else p
+        if not cells:
+            continue
+        w = max(x for x, _ in cells) + 1
+        h = max(y for _, y in cells) + 1
         wmax = max(wmax, w)
         hmax = max(hmax, h)
+    return wmax, hmax
 
+
+def compute_best_cell_size(win_w, win_h, num_pieces, wmax, hmax):
+    """
+    Compute optimal cell size for given window dimensions and piece constraints.
+    
+    Args:
+        win_w: Window width in pixels
+        win_h: Window height in pixels
+        num_pieces: Number of pieces to fit in palette
+        wmax: Maximum piece width in cells
+        hmax: Maximum piece height in cells
+    
+    Returns:
+        int: Optimal cell size in pixels
+    """
     from math import ceil
-
+    
     max_palette_rows = 2
     controls_rows = 2
     best = 16
+    
     for palette_rows in range(1, max_palette_rows + 1):
-        palette_cols = ceil(len(PIECES_BASE) / palette_rows)
+        palette_cols = ceil(num_pieces / palette_rows)
         total_h_cells = GRID_H + palette_rows * hmax + controls_rows
         total_w_cells = max(GRID_W, palette_cols * wmax)
         cell_w = win_w // total_w_cells
@@ -140,6 +176,12 @@ def compute_initial_cell(win_w: int, win_h: int) -> int:
         if cell > best:
             best = cell
     return best
+
+
+def compute_initial_cell(win_w: int, win_h: int) -> int:
+    """Compute initial cell size based on PIECES_BASE dimensions."""
+    wmax, hmax = get_piece_dimensions(PIECES_BASE)
+    return compute_best_cell_size(win_w, win_h, len(PIECES_BASE), wmax, hmax)
 
 
 win_w, win_h = 1000, 600
@@ -234,6 +276,20 @@ def oriented_cells(base_cells, rot, flip):
     return normalize(s)
 
 
+# ------------------ FONT SCALE CONSTANTS ------------------
+FONT_SCALE_CONTROLS = 0.28
+FONT_SCALE_WEEKDAY = 0.33
+FONT_SCALE_MONTH = 0.35
+FONT_SCALE_THEME_LABEL = 0.35
+FONT_SCALE_DATE = 0.45
+FONT_SCALE_BUTTON = 0.45
+FONT_SCALE_SOLUTION_INDEX = 0.45
+FONT_SCALE_WIN_SUBTITLE = 0.6
+FONT_SCALE_TIMER = 0.7
+FONT_SCALE_WIN_TIMER = 0.8
+FONT_SCALE_SOLVING = 1.0
+FONT_SCALE_WIN_TITLE = 1.2
+
 # ------------------ THEME & FONTS ------------------
 theme_idx = 0
 
@@ -253,6 +309,11 @@ def choose_font(sz, bold=False):
         return pygame.font.SysFont("Consolas", sz, bold=bold)
     except Exception:
         return pygame.font.SysFont("Courier New", sz, bold=bold)
+
+
+def create_scaled_font(scale_factor, bold=False):
+    """Create a font scaled by CELL size with the given scale factor."""
+    return choose_font(max(12, int(CELL * scale_factor)), bold=bold)
 
 
 PIECE_COLORS = THEMES[0]["PIECE_COLORS"]
@@ -299,34 +360,36 @@ placed = []
 CELL = compute_initial_cell(win_w, win_h)
 
 
-def _max_piece_dims():
-    wmax = 1
-    hmax = 1
-    for p in pieces:
-        if not p["cells"]:
-            continue
-        w = max(x for x, _ in p["cells"]) + 1
-        h = max(y for _, y in p["cells"]) + 1
-        wmax = max(wmax, w)
-        hmax = max(hmax, h)
-    return wmax, hmax
-
-
 def compute_best_layout(win_w_, win_h_):
-    n = len(pieces)
-    wmax, hmax = _max_piece_dims()
+    """
+    Compute the best layout configuration for pieces palette.
+    
+    Args:
+        win_w_: Window width in pixels
+        win_h_: Window height in pixels
+    
+    Returns:
+        dict: Layout configuration with cell size, rows, cols, dimensions
+    """
     from math import ceil
-
+    
+    n = len(pieces)
+    wmax, hmax = get_piece_dimensions(pieces)
+    
     max_palette_rows = 2
     controls_rows = 2
+    best_cell = compute_best_cell_size(win_w_, win_h_, n, wmax, hmax)
+    
+    # Find the palette configuration that produces this best cell size
     best = {
-        "cell": 16,
+        "cell": best_cell,
         "palette_rows": 1,
         "palette_cols": n,
         "controls_rows": controls_rows,
         "wmax": wmax,
         "hmax": hmax,
     }
+    
     for palette_rows in range(1, max_palette_rows + 1):
         palette_cols = ceil(n / palette_rows)
         total_h_cells = GRID_H + palette_rows * hmax + controls_rows
@@ -334,7 +397,7 @@ def compute_best_layout(win_w_, win_h_):
         cell_w = win_w_ // total_w_cells
         cell_h = win_h_ // total_h_cells
         cell = max(16, min(cell_w, cell_h))
-        if cell > best["cell"]:
+        if cell == best_cell:
             best = {
                 "cell": cell,
                 "palette_rows": palette_rows,
@@ -343,6 +406,8 @@ def compute_best_layout(win_w_, win_h_):
                 "wmax": wmax,
                 "hmax": hmax,
             }
+            break
+    
     return best
 
 
@@ -397,6 +462,43 @@ def update_placed_cells():
 
 recompute_palette_layout()
 
+# ------------------ DRAW HELPERS ------------------
+def draw_button(surface, rect, text, bg_color, border_color, text_color, font_scale=FONT_SCALE_BUTTON):
+    """
+    Draw a button with text centered.
+    
+    Args:
+        surface: Pygame surface to draw on
+        rect: pygame.Rect for button position and size
+        text: Button text string
+        bg_color: Background color tuple (R, G, B)
+        border_color: Border color tuple (R, G, B)
+        text_color: Text color tuple (R, G, B)
+        font_scale: Font scale factor (default: FONT_SCALE_BUTTON)
+    """
+    pygame.draw.rect(surface, bg_color, rect, border_radius=10)
+    pygame.draw.rect(surface, border_color, rect, 2, border_radius=10)
+    btn_font = create_scaled_font(font_scale, bold=True)
+    btn_text = btn_font.render(text, True, text_color)
+    btn_text_rect = btn_text.get_rect(center=rect.center)
+    surface.blit(btn_text, btn_text_rect)
+
+
+def get_button_theme_colors(button_type="normal"):
+    """
+    Get theme colors for a button.
+    
+    Args:
+        button_type: "normal" or "autosolve"
+    
+    Returns:
+        tuple: (bg_color, border_color, text_color)
+    """
+    if button_type == "autosolve":
+        return AUTOSOLVE_BG, AUTOSOLVE_BORDER, AUTOSOLVE_TEXT
+    return BTN_BG, BTN_BORDER, BTN_TEXT
+
+
 # ------------------ DRAW ------------------
 def get_board_y_offset():
     return int(CELL * 1.2)
@@ -422,9 +524,9 @@ def draw_board(surface, y_offset=0):
                 pygame.draw.rect(surface, VOID_TILE, rect, border_radius=8)
                 pygame.draw.rect(surface, CELL_BORDER, rect, 2, border_radius=8)
 
-    month_font = choose_font(max(12, int(CELL * 0.35)))
-    date_font = choose_font(max(14, int(CELL * 0.45)))
-    weekday_font = choose_font(max(12, int(CELL * 0.33)))
+    month_font = create_scaled_font(FONT_SCALE_MONTH)
+    date_font = create_scaled_font(FONT_SCALE_DATE)
+    weekday_font = create_scaled_font(FONT_SCALE_WEEKDAY)
     for (x, y), info in cell_label.items():
         sx, sy = x * CELL, y_offset + y * CELL
         t = info["text"]
@@ -538,6 +640,40 @@ def is_only_today_visible():
     return True
 
 
+# ------------------ TIMER HELPERS ------------------
+def calculate_elapsed_time(start_time, end_time=None):
+    """
+    Calculate elapsed time in seconds.
+    
+    Args:
+        start_time: Start timestamp
+        end_time: Optional end timestamp. If None, uses current time.
+    
+    Returns:
+        float: Elapsed time in seconds
+    """
+    if start_time is None:
+        return 0.0
+    if end_time is not None:
+        return end_time - start_time
+    return time.time() - start_time
+
+
+def format_timer(elapsed):
+    """
+    Format elapsed time as MM:SS.SS string.
+    
+    Args:
+        elapsed: Time in seconds
+    
+    Returns:
+        str: Formatted time string
+    """
+    mins = int(elapsed // 60)
+    secs = elapsed % 60
+    return f"Time: {mins}:{secs:05.2f}"
+
+
 # Confetti
 confetti_particles = []
 
@@ -589,14 +725,14 @@ def draw_win_screen(surface):
     overlay.fill((0, 0, 0, 180))
     surface.blit(overlay, (0, 0))
     update_confetti(surface)
-    font = choose_font(int(CELL * 1.2))
+    font = create_scaled_font(FONT_SCALE_WIN_TITLE)
     msg = f"You solved it! {today.strftime('%B %d')} is visible!"
     text_surf = font.render(msg, True, (255, 255, 200))
     rect = text_surf.get_rect(
         center=(surface.get_width() // 2, surface.get_height() // 2)
     )
     surface.blit(text_surf, rect)
-    font2 = choose_font(int(CELL * 0.6))
+    font2 = create_scaled_font(FONT_SCALE_WIN_SUBTITLE)
     msg2 = "Press ESC to continue"
     text2 = font2.render(msg2, True, (255, 255, 200))
     rect2 = text2.get_rect(
@@ -604,11 +740,9 @@ def draw_win_screen(surface):
     )
     surface.blit(text2, rect2)
     if timer_started and timer_start_time is not None and timer_end_time is not None:
-        elapsed = timer_end_time - timer_start_time
-        mins = int(elapsed // 60)
-        secs = elapsed % 60
-        timer_msg = f"Time: {mins}:{secs:05.2f}"
-        font_timer = choose_font(int(CELL * 0.8))
+        elapsed = calculate_elapsed_time(timer_start_time, timer_end_time)
+        timer_msg = format_timer(elapsed)
+        font_timer = create_scaled_font(FONT_SCALE_WIN_TIMER)
         timer_surf = font_timer.render(timer_msg, True, (255, 255, 200))
         esc_y = surface.get_height() // 2 + int(CELL * 1.2)
         timer_rect = timer_surf.get_rect(
@@ -950,21 +1084,6 @@ while running:
 
         elif ev.type == pygame.VIDEORESIZE:
             new_w, new_h = ev.w, ev.h
-            n = len(pieces)
-            wmax, hmax = _max_piece_dims()
-            from math import ceil
-
-            best_cell = 24
-            for cols in range(1, n + 1):
-                rows = ceil(n / cols)
-                total_w_cells = GRID_W + 1 + cols * (wmax + 1)
-                total_h_cells = max(GRID_H, 1 + rows * (hmax + 1))
-                cell_w = new_w // total_w_cells
-                cell_h = new_h // total_h_cells
-                cell = max(16, min(cell_w, cell_h))
-                if cell > best_cell:
-                    best_cell = cell
-            CELL = best_cell
             screen = pygame.display.set_mode((new_w, new_h), pygame.RESIZABLE)
             recompute_palette_layout()
 
@@ -982,14 +1101,21 @@ while running:
                     timer_start_time = None
                     timer_end_time = None
             else:
-                if auto_solve_active and solver_solutions:
+                # Theme switching
+                if ev.key == pygame.K_t:
+                    theme_idx = (theme_idx + 1) % len(THEMES)
+                    apply_theme()
+                    update_piece_colors()
+                    recompute_palette_layout()
+                # Auto-solve navigation
+                elif auto_solve_active and solver_solutions:
                     if ev.key == pygame.K_LEFT:
                         solver_index = (solver_index - 1) % len(solver_solutions)
                         apply_solution(solver_solutions[solver_index])
                     elif ev.key == pygame.K_RIGHT:
                         solver_index = (solver_index + 1) % len(solver_solutions)
                         apply_solution(solver_solutions[solver_index])
-
+                # Deselect and piece manipulation
                 if ev.key == pygame.K_ESCAPE:
                     selected_idx = None
                 elif selected_idx is not None:
@@ -1123,12 +1249,12 @@ while running:
     pygame.draw.rect(
         screen, BG, (0, dark_area_y, GRID_W * CELL, dark_area_height), border_radius=12
     )
-    theme_label_font = choose_font(int(CELL * 0.35), bold=True)
+    theme_label_font = create_scaled_font(FONT_SCALE_THEME_LABEL, bold=True)
     theme_name = get_theme()["name"]
     label_surf = theme_label_font.render(
         f"Theme: {theme_name} (T to change)", True, TEXT_COL
     )
-    controls_font = choose_font(int(CELL * 0.28))
+    controls_font = create_scaled_font(FONT_SCALE_CONTROLS)
     controls_text = (
         "R: Rotate   F: Flip   ESC: Deselect/Reset   \nRight mouse click: Reset singular piece   ←/→: Browse Auto-Solve"
     )
@@ -1150,27 +1276,15 @@ while running:
         CELL * 0.5
     )
     button_rect = pygame.Rect(button_x, button_y, button_w, button_h)
-    pygame.draw.rect(screen, BTN_BG, button_rect, border_radius=10)
-    pygame.draw.rect(screen, BTN_BORDER, button_rect, 2, border_radius=10)
-    btn_font = choose_font(int(CELL * 0.45), bold=True)
-    btn_text = btn_font.render("Reset Board", True, BTN_TEXT)
-    btn_text_rect = btn_text.get_rect(center=button_rect.center)
-    screen.blit(btn_text, btn_text_rect)
+    btn_bg, btn_border, btn_text_col = get_button_theme_colors("normal")
+    draw_button(screen, button_rect, "Reset Board", btn_bg, btn_border, btn_text_col)
 
-    autosolve_button_w = button_w
-    autosolve_button_h = button_h
-    autosolve_button_x = button_x
     autosolve_button_y = button_y + button_h + int(CELL * 0.3)
     autosolve_button_rect = pygame.Rect(
-        autosolve_button_x, autosolve_button_y, autosolve_button_w, autosolve_button_h
+        button_x, autosolve_button_y, button_w, button_h
     )
-    pygame.draw.rect(screen, AUTOSOLVE_BG, autosolve_button_rect, border_radius=10)
-    pygame.draw.rect(screen, AUTOSOLVE_BORDER, autosolve_button_rect, 2, border_radius=10)  # noqa: E501
-    autosolve_btn_text = btn_font.render("Auto-Solve", True, AUTOSOLVE_TEXT)
-    autosolve_btn_text_rect = autosolve_btn_text.get_rect(
-        center=autosolve_button_rect.center
-    )
-    screen.blit(autosolve_btn_text, autosolve_btn_text_rect)
+    auto_bg, auto_border, auto_text_col = get_button_theme_colors("autosolve")
+    draw_button(screen, autosolve_button_rect, "Auto-Solve", auto_bg, auto_border, auto_text_col)
 
     draw_pieces(screen, selected_idx)
 
@@ -1178,7 +1292,7 @@ while running:
     if solving:
         overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 120))
-        font = choose_font(int(CELL * 1.0), bold=True)
+        font = create_scaled_font(FONT_SCALE_SOLVING, bold=True)
         text_surf = font.render("Solving...", True, (255, 255, 80))
         rect = text_surf.get_rect(
             center=(screen.get_width() // 2, screen.get_height() // 2)
@@ -1212,45 +1326,32 @@ while running:
     if win_mode:
         draw_win_screen(screen)
     else:
-        if timer_started and timer_start_time is not None:
-            elapsed = (
-                (timer_end_time - timer_start_time)
-                if timer_end_time is not None
-                else (time.time() - timer_start_time)
-            )
+        # Display timer
+        if timer_started:
+            elapsed = calculate_elapsed_time(timer_start_time, timer_end_time)
         else:
             elapsed = 0.0
-        mins = int(elapsed // 60)
-        secs = elapsed % 60
-        timer_msg = f"Time: {mins}:{secs:05.2f}"
-        font_timer = choose_font(int(CELL * 0.7))
+        timer_msg = format_timer(elapsed)
+        font_timer = create_scaled_font(FONT_SCALE_TIMER)
         timer_surf = font_timer.render(timer_msg, True, (255, 255, 200))
         pad = int(CELL * 0.3)
         timer_rect = timer_surf.get_rect(topright=(screen.get_width() - pad, pad))
         screen.blit(timer_surf, timer_rect)
 
+        # Display solution index when auto-solving
         if auto_solve_active and solver_solutions:
-            idx_font = choose_font(int(CELL * 0.45), bold=True)
+            idx_font = create_scaled_font(FONT_SCALE_SOLUTION_INDEX, bold=True)
             s = f"Solution {solver_index + 1}/{len(solver_solutions)}  (← / →)"
             idx_surf = idx_font.render(s, True, (255, 255, 255))
             idx_rect = idx_surf.get_rect(
                 center=(
                     GRID_W * CELL // 2,
-                    autosolve_button_y + autosolve_button_h + int(CELL * 0.9),
+                    autosolve_button_y + button_h + int(CELL * 0.9),
                 )
             )
             screen.blit(idx_surf, idx_rect)
 
     pygame.display.flip()
-
-    # Theme switching
-    for ev in events:
-        if ev.type == pygame.KEYDOWN and ev.key == pygame.K_t:
-            theme_idx = (theme_idx + 1) % len(THEMES)
-            apply_theme()
-            update_piece_colors()
-            recompute_palette_layout()
-            break
 
 pygame.quit()
 sys.exit()
