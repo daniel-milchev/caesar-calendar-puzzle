@@ -133,11 +133,9 @@ def get_piece_dimensions(piece_collection=None):
         
     wmax, hmax = 1, 1
     for p in piece_collection:
-        if not p:
-            continue
         # Handle both raw coordinate lists and piece dicts with 'cells' key
         cells = p.get("cells", p) if isinstance(p, dict) else p
-        if not cells:
+        if not cells or len(cells) == 0:
             continue
         w = max(x for x, _ in cells) + 1
         h = max(y for _, y in cells) + 1
@@ -378,11 +376,10 @@ def compute_best_layout(win_w_, win_h_):
     
     max_palette_rows = 2
     controls_rows = 2
-    best_cell = compute_best_cell_size(win_w_, win_h_, n, wmax, hmax)
     
-    # Find the palette configuration that produces this best cell size
+    # Find the configuration that gives the largest cell size
     best = {
-        "cell": best_cell,
+        "cell": 16,
         "palette_rows": 1,
         "palette_cols": n,
         "controls_rows": controls_rows,
@@ -397,7 +394,7 @@ def compute_best_layout(win_w_, win_h_):
         cell_w = win_w_ // total_w_cells
         cell_h = win_h_ // total_h_cells
         cell = max(16, min(cell_w, cell_h))
-        if cell == best_cell:
+        if cell > best["cell"]:
             best = {
                 "cell": cell,
                 "palette_rows": palette_rows,
@@ -406,7 +403,6 @@ def compute_best_layout(win_w_, win_h_):
                 "wmax": wmax,
                 "hmax": hmax,
             }
-            break
     
     return best
 

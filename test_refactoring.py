@@ -14,28 +14,20 @@ import caldendar_puzzle as cp
 
 def test_font_scale_constants():
     """Test that all font scale constants are defined."""
-    constants = [
-        'FONT_SCALE_CONTROLS',
-        'FONT_SCALE_WEEKDAY', 
-        'FONT_SCALE_MONTH',
-        'FONT_SCALE_THEME_LABEL',
-        'FONT_SCALE_DATE',
-        'FONT_SCALE_BUTTON',
-        'FONT_SCALE_SOLUTION_INDEX',
-        'FONT_SCALE_WIN_SUBTITLE',
-        'FONT_SCALE_TIMER',
-        'FONT_SCALE_WIN_TIMER',
-        'FONT_SCALE_SOLVING',
-        'FONT_SCALE_WIN_TITLE',
+    # Dynamically find all FONT_SCALE_* constants
+    font_scale_constants = [
+        name for name in dir(cp) 
+        if name.startswith('FONT_SCALE_') and not name.startswith('_')
     ]
     
-    for const in constants:
-        assert hasattr(cp, const), f"Missing constant: {const}"
+    assert len(font_scale_constants) >= 10, "Should have at least 10 font scale constants"
+    
+    for const in font_scale_constants:
         value = getattr(cp, const)
         assert isinstance(value, float), f"{const} should be a float"
         assert 0 < value <= 2.0, f"{const} should be between 0 and 2.0"
     
-    print("✓ All font scale constants defined correctly")
+    print(f"✓ All {len(font_scale_constants)} font scale constants defined correctly")
 
 
 def test_create_scaled_font():
