@@ -1,4 +1,5 @@
 # Caesar's Calendar Puzzle with DLX Auto-Solver (cleaned + no board outline shadow)
+# For detailed documentation of helper functions, see HELPER_FUNCTIONS.md
 import datetime
 import os
 import random
@@ -118,16 +119,7 @@ PIECES_BASE = [
 
 # ------------------ WINDOW & LAYOUT HELPERS ------------------
 def get_piece_dimensions(piece_collection=None):
-    """
-    Calculate max width and height across all pieces.
-    
-    Args:
-        piece_collection: Optional list of pieces to measure. 
-                         Uses PIECES_BASE if None.
-    
-    Returns:
-        tuple: (max_width, max_height)
-    """
+    """Calculate max width and height across all pieces."""
     if piece_collection is None:
         piece_collection = PIECES_BASE
         
@@ -145,19 +137,7 @@ def get_piece_dimensions(piece_collection=None):
 
 
 def compute_best_cell_size(win_w, win_h, num_pieces, wmax, hmax):
-    """
-    Compute optimal cell size for given window dimensions and piece constraints.
-    
-    Args:
-        win_w: Window width in pixels
-        win_h: Window height in pixels
-        num_pieces: Number of pieces to fit in palette
-        wmax: Maximum piece width in cells
-        hmax: Maximum piece height in cells
-    
-    Returns:
-        int: Optimal cell size in pixels
-    """
+    """Compute optimal cell size for given window dimensions and piece constraints."""
     from math import ceil
     
     max_palette_rows = 2
@@ -359,16 +339,7 @@ CELL = compute_initial_cell(win_w, win_h)
 
 
 def compute_best_layout(win_w_, win_h_):
-    """
-    Compute the best layout configuration for pieces palette.
-    
-    Args:
-        win_w_: Window width in pixels
-        win_h_: Window height in pixels
-    
-    Returns:
-        dict: Layout configuration with cell size, rows, cols, dimensions
-    """
+    """Compute the best layout configuration for pieces palette."""
     from math import ceil
     
     n = len(pieces)
@@ -460,18 +431,7 @@ recompute_palette_layout()
 
 # ------------------ DRAW HELPERS ------------------
 def draw_button(surface, rect, text, bg_color, border_color, text_color, font_scale=FONT_SCALE_BUTTON):
-    """
-    Draw a button with text centered.
-    
-    Args:
-        surface: Pygame surface to draw on
-        rect: pygame.Rect for button position and size
-        text: Button text string
-        bg_color: Background color tuple (R, G, B)
-        border_color: Border color tuple (R, G, B)
-        text_color: Text color tuple (R, G, B)
-        font_scale: Font scale factor (default: FONT_SCALE_BUTTON)
-    """
+    """Draw a button with text centered."""
     pygame.draw.rect(surface, bg_color, rect, border_radius=10)
     pygame.draw.rect(surface, border_color, rect, 2, border_radius=10)
     btn_font = create_scaled_font(font_scale, bold=True)
@@ -481,15 +441,7 @@ def draw_button(surface, rect, text, bg_color, border_color, text_color, font_sc
 
 
 def get_button_theme_colors(button_type="normal"):
-    """
-    Get theme colors for a button.
-    
-    Args:
-        button_type: "normal" or "autosolve"
-    
-    Returns:
-        tuple: (bg_color, border_color, text_color)
-    """
+    """Get theme colors for a button (normal or autosolve)."""
     if button_type == "autosolve":
         return AUTOSOLVE_BG, AUTOSOLVE_BORDER, AUTOSOLVE_TEXT
     return BTN_BG, BTN_BORDER, BTN_TEXT
@@ -638,16 +590,7 @@ def is_only_today_visible():
 
 # ------------------ TIMER HELPERS ------------------
 def calculate_elapsed_time(start_time, end_time=None):
-    """
-    Calculate elapsed time in seconds.
-    
-    Args:
-        start_time: Start timestamp
-        end_time: Optional end timestamp. If None, uses current time.
-    
-    Returns:
-        float: Elapsed time in seconds
-    """
+    """Calculate elapsed time in seconds."""
     if start_time is None:
         return 0.0
     if end_time is not None:
@@ -656,15 +599,7 @@ def calculate_elapsed_time(start_time, end_time=None):
 
 
 def format_timer(elapsed):
-    """
-    Format elapsed time as MM:SS.SS string.
-    
-    Args:
-        elapsed: Time in seconds
-    
-    Returns:
-        str: Formatted time string
-    """
+    """Format elapsed time as MM:SS.SS string."""
     mins = int(elapsed // 60)
     secs = elapsed % 60
     return f"Time: {mins}:{secs:05.2f}"
