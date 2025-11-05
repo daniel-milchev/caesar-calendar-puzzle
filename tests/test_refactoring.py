@@ -3,7 +3,11 @@
 Simple tests to verify the refactored code maintains functionality.
 """
 import sys
+import os
 import pygame
+
+# Add src directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 # Initialize pygame before importing the module
 pygame.init()

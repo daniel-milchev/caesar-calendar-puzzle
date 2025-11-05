@@ -1,5 +1,5 @@
 # Caesar's Calendar Puzzle with DLX Auto-Solver (cleaned + no board outline shadow)
-# For detailed documentation of helper functions, see HELPER_FUNCTIONS.md
+# For detailed documentation of helper functions, see docs/HELPER_FUNCTIONS.md
 import datetime
 import os
 import random
